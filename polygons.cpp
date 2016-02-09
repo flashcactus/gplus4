@@ -167,7 +167,7 @@ template <typename T> struct ConvPolygon {
         
         bool is_in(MyVec2<T> pnt, T eps = 0) const {
             for(auto k=lines.begin(); k!= lines.end(); ++k) {
-                if( !(k->sgdist(pnt) >= -eps) ) { cerr<<'!'<<k->sgdist(pnt)<<endl; return false;}
+                if( !(k->sgdist(pnt) >= -eps) ) { return false;}
             }
             return true;
         }
@@ -243,11 +243,12 @@ int main() {
     ConvPolygon<float> poly2(antipoints, 4);
     vector<pt> pts2 = poly2.getpts();
     
-    //get h's
+    //get values for morphing
     vector<float> h1start, h1step, h2start, h2step;
     float h;
-
-    for (auto l = poly.lines.begin(); l!=poly.lines.end(); ++l){//fit p1 over p2
+    
+    //fit p1 over p2
+    for (auto l = poly.lines.begin(); l!=poly.lines.end(); ++l){
         h = l->h;
         for(auto p = pts2.begin(); p!=pts2.end(); ++p) {
             if(*p * l->getnrm() < h) {h = *p * l->getnrm();}
@@ -255,8 +256,9 @@ int main() {
         h1start.push_back(l->h);//start small
         h1step.push_back((h - l->h)/steps);//grow big
     }
-    
-    for (auto l = poly2.lines.begin(); l!=poly2.lines.end(); ++l){//fit p2 over p1 now
+
+    //fit p2 over p1 now
+    for (auto l = poly2.lines.begin(); l!=poly2.lines.end(); ++l){
         h = l->h;
         for(auto p = pts1.begin(); p!=pts1.end(); ++p) {
             if(*p * l->getnrm() < h) {h = *p * l->getnrm();}
@@ -270,11 +272,12 @@ int main() {
     vector<pt> ppts = ipoly.getpts();
     mpv(ppts);
      
-//GL magic
-    
+    //start up GL
     if (!glfwInit())
             exit(EXIT_FAILURE);
     glfwSetErrorCallback(error_callback);
+    
+    //create window
     GLFWwindow* window = glfwCreateWindow(800, 800, "polygons", NULL, NULL); 
     if (!window)
     {
@@ -282,16 +285,13 @@ int main() {
                 exit(EXIT_FAILURE);
     }
     glfwMakeContextCurrent(window);
-    
-    int width, height;
-    glfwGetFramebufferSize(window, &width, &height);
-    glViewport(0, 0, width, height);
-
     glfwSwapInterval(1);
 
-    int stepsleft=steps;
+    int stepsleft=steps;//crutch
+    //main rendering loop
     while (!glfwWindowShouldClose(window))
     {
+        //setup view
         float ratio;
         int width, height;
         glfwGetFramebufferSize(window, &width, &height);
@@ -304,6 +304,7 @@ int main() {
         glMatrixMode(GL_MODELVIEW);
         glLoadIdentity();
         
+        //morph the polygons
         if(stepsleft > 0) {
             for (unsigned i = 0; i<poly.lines.size(); ++i){
                poly.lines[i].h += h1step[i];
@@ -314,7 +315,11 @@ int main() {
             ipoly = poly.intersect(poly2);
             ppts = ipoly.getpts();
             stepsleft--; 
+        } else { 
+            glfwWaitEvents();
         }
+        
+        //draw them
         glBegin(GL_TRIANGLE_FAN);
         for(auto i=ppts.begin(); i!= ppts.end(); ++i) {
             glColor3f(1.f,0.f,0.f);
@@ -322,11 +327,12 @@ int main() {
         }
         glEnd();
         
+        //output
         glfwSwapBuffers(window);
         glfwPollEvents();
-
     }
-
+    
+    //exit
     glfwDestroyWindow(window);
     glfwTerminate();
 }
