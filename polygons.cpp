@@ -81,10 +81,10 @@ template <typename T> struct Line {
     public:
         T h;
     
-    T setnrm(const MyVec2<T> n) {
+    void setnrm(const MyVec2<T> n) {
         norm = n.normalized(); 
     }
-    T setvec(const MyVec2<T> v) {
+    void setvec(const MyVec2<T> v) {
         norm = v.normalized().rotcw();
     }
 
@@ -121,61 +121,76 @@ template <typename T> struct Line {
 //-------------------------------------------------
 
 template <typename T> struct ConvPolygon {
-    T EPS = 0.001;
-    vector<Line<T> > lines;
-    
-    ConvPolygon(){};
-   
-    ConvPolygon(const MyVec2<T>* pts, int size) {
-        ConvPolygon(vector<MyVec2<T>>(pts, pts+size));
-    }
+    public:
+        T EPS = 0.001;
+        vector<Line<T> > lines;
+        
+        ConvPolygon(){};
+       
+        ConvPolygon(const MyVec2<T>* pts, int size) {
+            fill(pts, size);
+        }
 
-    ConvPolygon(const vector<MyVec2<T>> pts) {
-        vector<MyVec2<T>> points = pts;
-        sort(
-            points.begin(), points.end(), 
-            [] (const pt &p1, const pt &p2) { return (p1.arg() < p2.arg()); }
-        );
-        mpv(points);
-        MyVec2<T> CoM = *(points.begin());
-        for(auto i=points.begin()+1; i<points.end(); ++i) {
-            CoM = CoM + *i;
-            lines.push_back(Line<T>(*(i-1), *i));
+        ConvPolygon(const vector<MyVec2<T>> pts) {
+            fill(pts);
         }
-        lines.push_back(Line<T>(*(points.end()-1), *(points.begin())));
-        mpl(lines);
-        CoM = CoM/points.size();
-        pv(CoM);
-        for(auto i=lines.begin()+1; i<lines.end(); ++i) {
-            i->fliptoward(CoM);
+        
+        vector<Line<T>> fill(const MyVec2<T>* pts, int size) {
+            return fill(vector<MyVec2<T>>(pts, pts+size));
         }
-        mpl(lines);
-        cout<<lines.size()<<endl;
-    }
-   
-    
-    bool is_in(MyVec2<T> pnt, T eps = 0) {
-        for(auto k=lines.begin(); k!= lines.end(); ++k) {
-            if( k->sgdist(pnt) < -eps ) {return false;}
-        }
-        return true;
-    }
 
-    vector<MyVec2<T>> getpts() const {
-        vector<MyVec2<T>> points;
-        MyVec2<T> X;
-        bool ok;
-        for ( auto i=lines.begin(); i!= lines.end(); ++i ) {
-           for (auto j=i+1; j!= lines.end(); ++j) {
-                X = *i & *j;
-                if(is_in(X,EPS)) { points.push_back(X); }
+        vector<Line<T>> fill(const vector<MyVec2<T>> pts) {
+            vector<MyVec2<T>> points = pts;
+            sort(
+                points.begin(), points.end(), 
+                [] (const pt &p1, const pt &p2) { return (p1.arg() < p2.arg()); }
+            );
+            mpv(points);
+            MyVec2<T> CoM = *(points.begin());
+            for(auto i=points.begin()+1; i<points.end(); ++i) {
+                CoM = CoM + *i;
+                this->lines.push_back(Line<T>(*(i-1), *i));
             }
+            this->lines.push_back(Line<T>(*(points.end()-1), *(points.begin())));
+            mpl(this->lines);
+            CoM = CoM/points.size();
+            pv(CoM);
+            for(auto i=this->lines.begin()+1; i<this->lines.end(); ++i) {
+                i->fliptoward(CoM);
+            }
+            mpl(this->lines);
+            cout<<this->lines.size()<<endl;
+            return lines;
         }
-        sort(
-            points.begin(), points.end(), 
-            [] (const pt &p1, const pt &p2) { return (p1.arg() < p2.arg()); }
-        );
-    }
+
+        ConvPolygon(const ConvPolygon& p) {
+            cerr<<"!";
+            EPS = p.EPS;
+            lines = p.lines;
+        }
+        
+        bool is_in(MyVec2<T> pnt, T eps = 0) {
+            for(auto k=lines.begin(); k!= lines.end(); ++k) {
+                if( k->sgdist(pnt) < -eps ) {return false;}
+            }
+            return true;
+        }
+
+        vector<MyVec2<T>> getpts() const {
+            vector<MyVec2<T>> points;
+            MyVec2<T> X;
+            bool ok;
+            for ( auto i=lines.begin(); i!= lines.end(); ++i ) {
+               for (auto j=i+1; j!= lines.end(); ++j) {
+                    X = *i & *j;
+                    if(is_in(X,EPS)) { points.push_back(X); }
+                }
+            }
+            sort(
+                points.begin(), points.end(), 
+                [] (const pt &p1, const pt &p2) { return (p1.arg() < p2.arg()); }
+            );
+        }
 };
 
 template <typename T> void pv(MyVec2<T> v) {
@@ -200,7 +215,7 @@ int main() {
     
     pt points[] = {pt(3, -1), pt(-3, -1), pt(0, 3)};
     ConvPolygon<float> poly(points, 3);
-    cout<<poly.lines.size();
+    cout<<poly.lines.size()<<endl;
     mpl(poly.lines);
 }
 
