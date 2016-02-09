@@ -2,6 +2,7 @@
 #include <vector>
 #include <cmath>
 #include <algorithm>
+#include <GLFW/glfw3.h>
 using namespace std;
 
 /*
@@ -101,7 +102,7 @@ template <typename T> struct Line {
     MyVec2<T> getvec() { return norm.rotccw(); } 
 
     void fliptoward(MyVec2<T> pnt) {
-        if ( (pnt*norm - h) < 0 ) {
+        if ( sgdist(pnt) <= 0 ) {
             h = -h;
             norm = -norm;
         }
@@ -111,8 +112,8 @@ template <typename T> struct Line {
        return pnt*norm - h;
     }
     
-    MyVec2<T> operator& (const Line<T> oth) { //find intersection
-        MyVec2<T> r = (oth.norm.y*h - norm.y*oth.h , - oth.norm.x*h + norm.x*oth.h );
+    MyVec2<T> operator& (const Line<T> oth) const { //find intersection
+        MyVec2<T> r(oth.norm.y*h - norm.y*oth.h, - oth.norm.x*h + norm.x*oth.h );
         T c = norm.x * oth.norm.y - norm.y * oth.norm.x;
         return r/c;
     }
@@ -145,33 +146,28 @@ template <typename T> struct ConvPolygon {
                 points.begin(), points.end(), 
                 [] (const pt &p1, const pt &p2) { return (p1.arg() < p2.arg()); }
             );
-            mpv(points);
             MyVec2<T> CoM = *(points.begin());
             for(auto i=points.begin()+1; i<points.end(); ++i) {
                 CoM = CoM + *i;
-                this->lines.push_back(Line<T>(*(i-1), *i));
+                lines.push_back(Line<T>(*(i-1), *i));
             }
-            this->lines.push_back(Line<T>(*(points.end()-1), *(points.begin())));
-            mpl(this->lines);
+            lines.push_back(Line<T>(*(points.end()-1), *(points.begin())));
             CoM = CoM/points.size();
             pv(CoM);
-            for(auto i=this->lines.begin()+1; i<this->lines.end(); ++i) {
+            for(auto i=lines.begin(); i<lines.end(); ++i) {
                 i->fliptoward(CoM);
             }
-            mpl(this->lines);
-            cout<<this->lines.size()<<endl;
             return lines;
         }
 
         ConvPolygon(const ConvPolygon& p) {
-            cerr<<"!";
             EPS = p.EPS;
             lines = p.lines;
         }
         
-        bool is_in(MyVec2<T> pnt, T eps = 0) {
+        bool is_in(MyVec2<T> pnt, T eps = 0) const {
             for(auto k=lines.begin(); k!= lines.end(); ++k) {
-                if( k->sgdist(pnt) < -eps ) {return false;}
+                if( !(k->sgdist(pnt) >= -eps) ) { cerr<<'!'<<k->sgdist(pnt)<<endl; return false;}
             }
             return true;
         }
@@ -179,7 +175,6 @@ template <typename T> struct ConvPolygon {
         vector<MyVec2<T>> getpts() const {
             vector<MyVec2<T>> points;
             MyVec2<T> X;
-            bool ok;
             for ( auto i=lines.begin(); i!= lines.end(); ++i ) {
                for (auto j=i+1; j!= lines.end(); ++j) {
                     X = *i & *j;
@@ -190,6 +185,14 @@ template <typename T> struct ConvPolygon {
                 points.begin(), points.end(), 
                 [] (const pt &p1, const pt &p2) { return (p1.arg() < p2.arg()); }
             );
+            return points;
+        }
+
+        ConvPolygon<T> intersect(ConvPolygon<T> &other) const {
+            ConvPolygon<T> poly;
+            poly.lines = lines;
+            poly.lines.insert( poly.lines.end(), other.lines.begin(), other.lines.end() );
+            return poly;
         }
 };
 
@@ -209,13 +212,122 @@ template <typename T> void mpl(vector< Line<T> > vl) {
 }
 
 
+void error_callback(int error, const char* description)
+{
+        fputs(description, stderr);
+}
+
+const int steps = 500;
+int stepsleft;
+static void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
+{
+        if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
+            glfwSetWindowShouldClose(window, GL_TRUE);
+        
+        if (key == GLFW_KEY_SPACE && action == GLFW_PRESS){
+            stepsleft = steps;
+        }
+}
+
+
 int main() {
     fvec x(1,0);
     fvec y(0,1);
     
-    pt points[] = {pt(3, -1), pt(-3, -1), pt(0, 3)};
-    ConvPolygon<float> poly(points, 3);
-    cout<<poly.lines.size()<<endl;
-    mpl(poly.lines);
+    pt points[4] = {pt(3, -1), pt(-3, -1), pt(1, 3), pt(-1,3)};
+    pt antipoints[4];
+    for(auto i =0; i<4; ++i) { antipoints[i] = -points[i]; }
+
+    ConvPolygon<float> poly(points, 4);
+    vector<pt> pts1 = poly.getpts();
+    ConvPolygon<float> poly2(antipoints, 4);
+    vector<pt> pts2 = poly2.getpts();
+    
+    //get h's
+    vector<float> h1start, h1step, h2start, h2step;
+    float h;
+
+    for (auto l = poly.lines.begin(); l!=poly.lines.end(); ++l){//fit p1 over p2
+        h = l->h;
+        for(auto p = pts2.begin(); p!=pts2.end(); ++p) {
+            if(*p * l->getnrm() < h) {h = *p * l->getnrm();}
+        }
+        h1start.push_back(l->h);//start small
+        h1step.push_back((h - l->h)/steps);//grow big
+    }
+    
+    for (auto l = poly2.lines.begin(); l!=poly2.lines.end(); ++l){//fit p2 over p1 now
+        h = l->h;
+        for(auto p = pts1.begin(); p!=pts1.end(); ++p) {
+            if(*p * l->getnrm() < h) {h = *p * l->getnrm();}
+        }
+        h2start.push_back(h);//start big
+        h2step.push_back((l->h - h)/steps);//shrink down
+        l->h = h; //move the starting point now
+    }
+    ConvPolygon<float> ipoly = poly.intersect(poly2);
+    mpl(ipoly.lines);
+    vector<pt> ppts = ipoly.getpts();
+    mpv(ppts);
+     
+//GL magic
+    
+    if (!glfwInit())
+            exit(EXIT_FAILURE);
+    glfwSetErrorCallback(error_callback);
+    GLFWwindow* window = glfwCreateWindow(800, 800, "polygons", NULL, NULL); 
+    if (!window)
+    {
+            glfwTerminate();
+                exit(EXIT_FAILURE);
+    }
+    glfwMakeContextCurrent(window);
+    
+    int width, height;
+    glfwGetFramebufferSize(window, &width, &height);
+    glViewport(0, 0, width, height);
+
+    glfwSwapInterval(1);
+
+    int stepsleft=steps;
+    while (!glfwWindowShouldClose(window))
+    {
+        float ratio;
+        int width, height;
+        glfwGetFramebufferSize(window, &width, &height);
+        ratio = width / (float) height;
+        glViewport(0, 0, width, height);
+        glClear(GL_COLOR_BUFFER_BIT);
+        glMatrixMode(GL_PROJECTION);
+        glLoadIdentity();
+        glOrtho(-ratio, ratio, -1.f, 1.f, 1.f, -1.f);
+        glMatrixMode(GL_MODELVIEW);
+        glLoadIdentity();
+        
+        if(stepsleft > 0) {
+            for (unsigned i = 0; i<poly.lines.size(); ++i){
+               poly.lines[i].h += h1step[i];
+            }
+            for (unsigned i = 0; i<poly2.lines.size(); ++i){
+               poly2.lines[i].h += h2step[i];
+            }
+            ipoly = poly.intersect(poly2);
+            ppts = ipoly.getpts();
+            stepsleft--; 
+        }
+        glBegin(GL_TRIANGLE_FAN);
+        for(auto i=ppts.begin(); i!= ppts.end(); ++i) {
+            glColor3f(1.f,0.f,0.f);
+            glVertex3f(i->x/5,i->y/5,0.f);
+        }
+        glEnd();
+        
+        glfwSwapBuffers(window);
+        glfwPollEvents();
+
+    }
+
+    glfwDestroyWindow(window);
+    glfwTerminate();
 }
 
