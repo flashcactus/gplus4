@@ -217,25 +217,24 @@ void error_callback(int error, const char* description)
         fputs(description, stderr);
 }
 
-const int steps = 500;
+const int steps = 300;
 int stepsleft;
+int direction;
 static void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
         if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
             glfwSetWindowShouldClose(window, GL_TRUE);
         
-        if (key == GLFW_KEY_SPACE && action == GLFW_PRESS){
+        if (key == GLFW_KEY_SPACE && action == GLFW_PRESS && stepsleft == 0){
+            direction *= -1;
             stepsleft = steps;
         }
 }
 
 
 int main() {
-    fvec x(1,0);
-    fvec y(0,1);
-    
-    pt points[4] = {pt(3, -1), pt(-3, -1), pt(1, 3), pt(-1,3)};
-    pt antipoints[4];
+    pt points[4] = {pt(0.3, -0.1), pt(-0.3, -0.1), pt(0.1, 0.3), pt(-0.3,0.3)};
+    pt antipoints[4] ;
     for(auto i =0; i<4; ++i) { antipoints[i] = -points[i]; }
 
     ConvPolygon<float> poly(points, 4);
@@ -246,6 +245,8 @@ int main() {
     //get values for morphing
     vector<float> h1start, h1step, h2start, h2step;
     float h;
+    float color[3] = {1, 0, 0};
+    float colorstep[3] = {-1.0/steps, 1.0/steps, 0};
     
     //fit p1 over p2
     for (auto l = poly.lines.begin(); l!=poly.lines.end(); ++l){
@@ -285,10 +286,12 @@ int main() {
                 exit(EXIT_FAILURE);
     }
     glfwMakeContextCurrent(window);
+    glfwSetKeyCallback(window, key_callback);
     glfwSwapInterval(1);
 
-    int stepsleft=steps;//crutch
     //main rendering loop
+    stepsleft = 0;
+    direction = -1;
     while (!glfwWindowShouldClose(window))
     {
         //setup view
@@ -307,23 +310,24 @@ int main() {
         //morph the polygons
         if(stepsleft > 0) {
             for (unsigned i = 0; i<poly.lines.size(); ++i){
-               poly.lines[i].h += h1step[i];
+               poly.lines[i].h += direction * h1step[i];
             }
             for (unsigned i = 0; i<poly2.lines.size(); ++i){
-               poly2.lines[i].h += h2step[i];
+               poly2.lines[i].h += direction * h2step[i];
+            }
+            for (unsigned i = 0; i<3; ++i) {
+                color[i] += direction * colorstep[i];
             }
             ipoly = poly.intersect(poly2);
             ppts = ipoly.getpts();
             stepsleft--; 
-        } else { 
-            glfwWaitEvents();
-        }
+        } 
         
         //draw them
         glBegin(GL_TRIANGLE_FAN);
         for(auto i=ppts.begin(); i!= ppts.end(); ++i) {
-            glColor3f(1.f,0.f,0.f);
-            glVertex3f(i->x/5,i->y/5,0.f);
+            glColor3f(color[0],color[1],color[2]);
+            glVertex3f(i->x,i->y,0.f);
         }
         glEnd();
         
