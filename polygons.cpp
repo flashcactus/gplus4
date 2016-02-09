@@ -233,13 +233,12 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
 
 
 int main() {
-    pt points[4] = {pt(0.3, -0.1), pt(-0.3, -0.1), pt(0.1, 0.3), pt(-0.3,0.3)};
-    pt antipoints[4] ;
-    for(auto i =0; i<4; ++i) { antipoints[i] = -points[i]; }
+    pt points[] = {pt(0.4, -0.1), pt(-0.4, -0.1), pt(0.1, 0.3), pt(-0.3,0.3)};
+    pt antipoints[] = {pt(0.1,0.4), pt(0.3,0.3), pt(-0.3,-0.2), pt(-0.2,-0.3),pt(0,-0.2)} ;
 
-    ConvPolygon<float> poly(points, 4);
+    ConvPolygon<float> poly(points, sizeof(points)/sizeof(pt));
     vector<pt> pts1 = poly.getpts();
-    ConvPolygon<float> poly2(antipoints, 4);
+    ConvPolygon<float> poly2(antipoints, sizeof(antipoints)/sizeof(pt));
     vector<pt> pts2 = poly2.getpts();
     
     //get values for morphing
@@ -268,7 +267,7 @@ int main() {
         h2step.push_back((l->h - h)/steps);//shrink down
         l->h = h; //move the starting point now
     }
-    ConvPolygon<float> ipoly = poly.intersect(poly2);
+    ConvPolygon<float> ipoly = poly;
     mpl(ipoly.lines);
     vector<pt> ppts = ipoly.getpts();
     mpv(ppts);
